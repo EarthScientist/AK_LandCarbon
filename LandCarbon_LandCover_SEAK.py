@@ -25,7 +25,8 @@ import pandas as pd
 import numpy as np
 
 
-def preprocess(master_raster, input_spatial_file, output_dataset, burn_value=None, filter_query=None, creation_options=["COMPRESS=LZW"], rasterize_options=None):
+def preprocess(master_raster, input_spatial_file, output_dataset, burn_value=None, filter_query=None, \
+	creation_options=["COMPRESS=LZW"], rasterize_options=None):
 	"""
 
 	This function will take an input spatial file and return a standardized representation
@@ -53,7 +54,7 @@ def preprocess(master_raster, input_spatial_file, output_dataset, burn_value=Non
 	else:
 		# create new empty raster
 		driver = master_raster.GetDriver()
-		dst_ds = driver.Create(output_dataset, xsize, ysize, bands, gdal.GDT_Float32, options=creation_options) #master_raster.GetRasterBand(1).DataType
+		dst_ds = driver.Create(output_dataset, xsize, ysize, bands, gdal.GDT_Float32, options=creation_options)
 		dst_ds.SetProjection(master_raster.GetProjection())
 		dst_ds.SetGeoTransform(master_raster.GetGeoTransform())
 
@@ -312,10 +313,9 @@ def raster_bbox( geotransform, size ):
 	return [east1, east2, west1, west2]
 
 
-# create empty raster based on an extent
 def generate_raster(input_extent, epsg_code, output_filename, x_res=None, y_res=None, \
-		output_width=None, output_height=None, output_format="GTiff", \
-		output_datatype=gdal.GDT_Float32, creation_options=["COMPRESS=LZW"]):
+	output_width=None, output_height=None, output_format="GTiff", \
+	output_datatype=gdal.GDT_Float32, creation_options=["COMPRESS=LZW"]):
 	"""
 	this script takes as input an extent object and x/y cell resolution OR the number of pixels  to create a new 
 	empty raster at the given spatial resolutuon
@@ -379,20 +379,82 @@ def resample(gdal_raster, epsg_code, output_filename, method='mode', x_res=None,
 	out.FlushCache()
 	return out
 
+#######################################################
+
+# pre-process
+file_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted'
+# file_query_list = [['AKNPLCC_2ndGrowth.shp',],['AKNPLCC_Saltwater.shp',],['TNFCoverType.shp',]]
+creation_options=["COMPRESS=LZW"]
+master_raster=gdal.Open(os.path.join(file_path,'NLCD_canopy_AKNPLCC.tif'), gdal.GA_ReadOnly)
+# osrs.ImportFromEPSG(3338)
+
+# Saltwater
+input_spatial_file = ogr.Open(os.path.join(file_path,'AKNPLCC_Saltwater.shp'))
+
+osrs = osr.SpatialReference()
+osrs.ImportFromWkt(input_spatial_file.GetLayer().GetSpatialRef().ExportToWkt())
+master_raster.SetProjection(osrs.ExportToWkt())
+
+output_dataset = os.path.join(file_path,'AKNPLCC_Saltwater.tif')
+filter_query = None
+rasterized_out = preprocess( master_raster, 
+		input_spatial_file, 
+		output_dataset, 
+		burn_value=1, 
+		filter_query=None, 
+		creation_options=creation_options, 
+		rasterize_options=None )
+
+
+# TNFCoverType -- this involves 2 queries and burning into the same dataset
+input_spatial_file = ogr.Open(os.path.join(file_path,'TNFCoverType.shp'))
+output_dataset = os.path.join(file_path,'TNFCoverType.tif')
+burn_value_list = [5,6]
+filter_query_list = [ "NFCON='A' OR NFCON='B' OR NFCON='S' OR NFCON='T' OR NFCON='W'", "NFCON='H'" ]
+
+for i in range(len(filter_query_list)):
+	output_dataset = preprocess(master_raster, 
+			input_spatial_file, 
+			output_dataset, 
+			burn_value=burn_value_list[i], 
+			filter_query=filter_query_list[i], 
+			creation_options=creation_options, 
+			rasterize_options=None)
+
+# SEAK_2ndGrowth
+input_spatial_file = ogr.Open(os.path.join(file_path,'AKNPLCC_2ndGrowth.shp'))
+output_dataset = os.path.join(file_path,'SEAK_2ndGrowth.tif')
+
+# just to remove the testing raster which is the same name.  the preprocess code is not that smart
+if os.path.exists(output_dataset):
+	os.unlink(output_dataset)
+
+filter_query = None
+rasterize_options = ["ATTRIBUTE=year"]
+
+rasterized_out = preprocess(master_raster, 
+		input_spatial_file, 
+		output_dataset, 
+		burn_value=None, 
+		filter_query=None, 
+		creation_options=creation_options, 
+		rasterize_options=rasterize_options)
+
+
 
 #######################################################
 
 # PROCEDURE WORKING VERSION:  this will evolve into the main()
 
 # some initial base filename setup
-output_path = '/workspace/UA/malindgren/projects/LandCarbon_2014/working/output'
-output_name = 'LandCarbon_LandCover_BETA_v1.tif'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data'
+output_name = 'LandCarbon_LandCover_SEAK_v1.tif'
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 
 # step 3 reclassify NLCD Canopy raster
 reclass_table = [[1, 20, 1],[20, 101, 2]]
-canopy = gdal.Open('/workspace/UA/malindgren/projects/LandCarbon_2014/Frances_Data_012814/AKAlbers/NLCD_canopy_AKNPLCC.tif', gdal.GA_ReadOnly)
+canopy = gdal.Open(os.path.join(file_path,'NLCD_canopy_AKNPLCC.tif'), gdal.GA_ReadOnly)
 canopy_rcl = reclassify_raster( canopy, 
 		reclass_table, 
 		output_filename=os.path.join(output_path, output_name.replace('.tif','_canopy_rcl.tif')), 
@@ -405,7 +467,7 @@ canopy_rcl = reclassify_raster( canopy,
 
 # step 4 reclassify NLCD raster
 reclass_table = [[0, 32, 1],[42, 43, 2],[41, 42, 3],[43, 73, 3],[90, 96, 3], [81, 83, 5]]
-landcover = gdal.Open('/workspace/UA/malindgren/projects/LandCarbon_2014/Frances_Data_012814/AKAlbers/NLCD_land_cover_AKNPLCC.tif', gdal.GA_ReadOnly)
+landcover = gdal.Open(os.path.join(file_path,'NLCD_land_cover_AKNPLCC.tif'), gdal.GA_ReadOnly)
 landcover_rcl = reclassify_raster(landcover, 
 		reclass_table,  
 		output_filename=os.path.join(output_path, output_name.replace('.tif','_landcover_rcl.tif')), 
@@ -442,37 +504,11 @@ combined_rcl = reclassify_raster(combined,
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
-
-# step 7 
-#  reclassify erroneous values in Saltwater
-base_rst = combined_rcl
-cover_rst = gdal.Open('/workspace/UA/malindgren/projects/LandCarbon_2014/From_Frances_Extracted/AKNPLCC_Saltwater.tif')
-cover_value = 1
-out_cover_value = 1
-output_filename = os.path.join(output_path, output_name.replace('.tif','_remove_saltwater.tif'))
-
-if os.path.exists(os.path.join(output_path, output_name.replace('.tif','_remove_saltwater.tif'))):
-	os.unlink(os.path.join(output_path, output_name.replace('.tif','_remove_saltwater.tif')))
-
-data_type=gdal.GDT_Float32
-creation_options=["COMPRESS=LZW"]
-
-saltwater_removed = overlay_cover(base_rst, 
-		cover_rst, 
-		cover_value, 
-		out_cover_value, 
-		output_filename, 
-		data_type=gdal.GDT_Float32, 
-		creation_options=["COMPRESS=LZW"],
-		x_block_size=base_rst.RasterXSize, 
-		y_block_size=base_rst.RasterYSize )
-
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 # step 8 
 # overlay with the TNF Cover Type
 
-base_rst = saltwater_removed
-cover_rst = gdal.Open('/workspace/UA/malindgren/projects/LandCarbon_2014/From_Frances_Extracted/TNFCoverType.tif')
+base_rst = combined_rcl
+cover_rst = gdal.Open(os.path.join(file_path,'TNFCoverType.tif'))
 cover_value = [5,6]
 out_cover_value = [5,6]
 output_filename = os.path.join(output_path, output_name.replace('.tif','_add_TNFCoverType.tif'))
@@ -490,6 +526,32 @@ TNF_cover_added = overlay_cover(base_rst,
 		output_filename, 
 		data_type=gdal.GDT_Float32, 
 		creation_options=["COMPRESS=LZW"], 
+		x_block_size=base_rst.RasterXSize, 
+		y_block_size=base_rst.RasterYSize )
+
+## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
+
+# ** Changed to final step prior to resampling. **
+#  reclassify erroneous values in Saltwater
+base_rst = TNF_cover_added
+cover_rst = gdal.Open(os.path.join(file_path,'AKNPLCC_Saltwater.tif'))
+cover_value = 1
+out_cover_value = 1
+output_filename = os.path.join(output_path, output_name.replace('.tif','_remove_saltwater.tif'))
+
+if os.path.exists(os.path.join(output_path, output_name.replace('.tif','_remove_saltwater.tif'))):
+	os.unlink(os.path.join(output_path, output_name.replace('.tif','_remove_saltwater.tif')))
+
+data_type=gdal.GDT_Float32
+creation_options=["COMPRESS=LZW"]
+
+saltwater_removed = overlay_cover(base_rst, 
+		cover_rst, 
+		cover_value, 
+		out_cover_value, 
+		output_filename, 
+		data_type=gdal.GDT_Float32, 
+		creation_options=["COMPRESS=LZW"],
 		x_block_size=base_rst.RasterXSize, 
 		y_block_size=base_rst.RasterYSize )
 
