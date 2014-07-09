@@ -82,6 +82,79 @@ def preprocess(master_raster, input_spatial_file, output_dataset, burn_value=Non
 	return dst_ds
 
 
+def block_walk(gdal_raster, block_size=None):
+	"""
+	generator function which yields a single block of a
+	gdal raster dataset as a numpy array for each iteration
+
+	arguments:
+	gdal_raster = object of class : <class 'osgeo.gdal.Dataset'>
+	block_size = a tuple or list of 2 integers (x_block_size, y_block_size)
+
+	"""
+	if block_size is None:
+		block_size = gdal_raster.GetRasterBand(1).GetBlockSize()
+	
+	x_block_size, y_block_size = block_size
+	ncols = gdal_raster.RasterXSize
+	nrows = gdal_raster.RasterYSize
+
+	for yoff in xrange(0, nrows, y_block_size):
+		if yoff + y_block_size < nrows:
+			ysize = y_block_size
+		else:
+			ysize  = nrows - yoff
+
+		for xoff in xrange(0, ncols, x_block_size):
+			if xoff + x_block_size < ncols:
+				xsize  = x_block_size
+			else:
+				xsize = ncols - xoff
+
+			yield ([xoff,yoff], gdal_raster.GetRasterBand(1).ReadAsArray(xoff, yoff, xsize, ysize ))
+
+
+def create_raster_copy(output_filename, gdal_raster_template, epsg_code, gdal_data_type=gdal.GDT_Float32, driver='GTiff', creation_options=['COMPRESS=LZW']):
+	"""
+	a function to abstract the creation of a copy of a gdal raster object
+
+	arguments:
+
+	output_filename = string path to the output file with extension
+	gdal_raster_template = gdal dataset to be used to copy raster information to new raster
+	epsg_code = an integer representing the desired spatial reference epsg code
+	gdal_data_type =  gdal.GDT_* object depicting the new data numerical properties
+	driver = string gdal driver short name
+	creation_options = the driver creation options in a list of key=value strings
+
+	"""
+	driver = gdal.GetDriverByName( driver )
+	xsize = gdal_raster_template.RasterXSize
+	ysize = gdal_raster_template.RasterYSize
+
+	osrs = osr.SpatialReference()
+	osrs.ImportFromEPSG(epsg_code)
+
+	dst_ds = driver.Create(output_filename, xsize, ysize, 1, gdal_data_type, options = creation_options)
+	dst_ds.SetGeoTransform(gdal_raster_template.GetGeoTransform())
+	dst_ds.SetProjection(osrs.ExportToWkt())
+	return dst_ds
+
+
+def raster_flush(gdal_raster):
+	"""
+	helper function to compute the band / raster stats
+	** I do all of them because I am not sure which works **
+	and flush the cache. 
+	"""
+	gdal_raster.FlushCache()
+	gdal_raster.GetRasterBand(1).ComputeBandStats()
+	gdal_raster.GetRasterBand(1).ComputeRasterMinMax()
+	gdal_raster.GetRasterBand(1).ComputeStatistics(0)
+	gdal_raster.FlushCache()
+
+
+
 def world2Pixel(geoMatrix, x, y):
 	"""
 	Uses a gdal geomatrix (gdal.GetGeoTransform()) to calculate
@@ -98,7 +171,7 @@ def world2Pixel(geoMatrix, x, y):
 	return (pixel, line)
 
 
-def reclassify_raster(gdal_raster, reclass_table, output_filename, output_format='GTiff', gdal_data_type=gdal.GDT_Float32, x_block_size=None, y_block_size=None):
+def reclassify_raster(gdal_raster, reclass_table, output_filename, output_format='GTiff', gdal_data_type=gdal.GDT_Float32, block_size=None):
 	"""
 	reclassify the values in a raster. 
 
@@ -110,6 +183,11 @@ def reclassify_raster(gdal_raster, reclass_table, output_filename, output_format
 	output_filename = path to the output reclassed raster file
 	output_format = a GDAL recognized keyword string representing a data output_format
 	gdal_data_type = the output GDAL data type format for the reclassed raster 
+	block_size = default is None and if you want to set the block size it is a tuple/list with
+				2 elements (block_x_size, block_y_size).
+
+	! Note:
+	the EPSG code should be properly written in here as it is hardwired in the creation of the new dataset
 
 
 	depends:
@@ -117,17 +195,6 @@ def reclassify_raster(gdal_raster, reclass_table, output_filename, output_format
 
 	"""
 	band = gdal_raster.GetRasterBand(1)
-
-	osrs = osr.SpatialReference()
-	osrs.ImportFromEPSG(3338)
-
-	if not x_block_size and y_block_size:
-		block_sizes = band.GetBlockSize()
-		x_block_size = block_sizes[0]
-		y_block_size = block_sizes[1]
-
-	xsize = band.XSize
-	ysize = band.YSize
 
 	max_value = band.GetMaximum()
 	min_value = band.GetMinimum()
@@ -139,38 +206,22 @@ def reclassify_raster(gdal_raster, reclass_table, output_filename, output_format
 		max_value = stats[1]
 		min_value = stats[0]
 
-	# create a new output raster to reclass to
-	driver = gdal.GetDriverByName( output_format )
-	dst_ds = driver.Create(output_filename, xsize, ysize, 1, gdal_data_type, options = ["COMPRESS=LZW"])
-	dst_ds.SetGeoTransform(gdal_raster.GetGeoTransform())
-	dst_ds.SetProjection(osrs.ExportToWkt())
+	# create a new output raster 
+	dst_ds = create_raster_copy(output_filename, gdal_raster, epsg_code=3338, gdal_data_type=gdal.GDT_Float32, driver=output_format, creation_options=['COMPRESS=LZW'])
 
-	for i in range(0, ysize, y_block_size):
-		if i + y_block_size < ysize:
-			rows = y_block_size
-		else:
-			rows = ysize - i
+	if block_size is None:
+		block_size = band.GetBlockSize()
 
-		for j in range(0, xsize, x_block_size):
-			if j + x_block_size < xsize:
-				cols = x_block_size
-			else:
-				cols = xsize
+	for block_sizes, data in block_walk(gdal_raster, block_size=block_size):
+		data_out = np.zeros(data.shape, dtype=np.dtype(float))
 
-			data = band.ReadAsArray(j, i, cols, rows)
-			data_out = np.zeros(data.shape, dtype=np.dtype(float))
-		
-			for k in reclass_table:
-				begin, end, out = k
-				data_out[np.logical_and(data >= begin, data < end)] = out
+		for k in reclass_table:
+			begin, end, out = k
+			data_out[np.logical_and(data >= begin, data < end)] = out
 
-			dst_ds.GetRasterBand(1).WriteArray(data_out,j,i)
+		dst_ds.GetRasterBand(1).WriteArray(data_out, block_sizes[0], block_sizes[1])
 
-	dst_ds.FlushCache()
-	dst_ds.GetRasterBand(1).ComputeBandStats()
-	dst_ds.GetRasterBand(1).ComputeRasterMinMax()
-	dst_ds.GetRasterBand(1).ComputeStatistics(0)
-	dst_ds.FlushCache()
+	raster_flush(dst_ds)
 	return dst_ds
 
 
@@ -407,8 +458,22 @@ rasterized_out = preprocess( master_raster,
 
 
 # TNFCoverType -- this involves 2 queries and burning into the same dataset
-input_spatial_file = ogr.Open(os.path.join(file_path,'TNFCoverType.shp'))
-output_dataset = os.path.join(file_path,'TNFCoverType.tif')
+input_spatial_file = ogr.Open(os.path.join(file_path,'TNFCoverType_OtherVeg_and_Alpine_MLedit.shp'))
+output_dataset = os.path.join(file_path, 'TNFCoverType_OtherVeg_and_Alpine_MLedit.tif')
+burn_value_list=[5,6]
+filter_query_list=["NFCON='A' OR NFCON='B' OR NFCON='S' OR NFCON='T' OR NFCON='W'","NFCON='H'"]
+
+for i in range(len(filter_query_list)):
+	output_dataset = preprocess(master_raster, 
+			input_spatial_file, 
+			output_dataset, 
+			burn_value=burn_value_list[i], 
+			filter_query=filter_query_list[i], 
+			creation_options=creation_options, 
+			rasterize_options=None)
+
+input_spatial_file = ogr.Open(os.path.join(file_path,'TNFCoverType_OtherVeg_and_Alpine_MLedit.shp'))
+output_dataset = os.path.join(file_path,'TNFCoverType_OtherVeg_and_Alpine_MLedit.tif')
 burn_value_list = [5,6]
 filter_query_list = [ "NFCON='A' OR NFCON='B' OR NFCON='S' OR NFCON='T' OR NFCON='W'", "NFCON='H'" ]
 
@@ -447,8 +512,8 @@ rasterized_out = preprocess(master_raster,
 # PROCEDURE WORKING VERSION:  this will evolve into the main()
 
 # some initial base filename setup
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data'
-output_name = 'LandCarbon_LandCover_SEAK_v1.tif'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/v2'
+output_name = 'LandCarbon_LandCover_SEAK_v2.tif'
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 
@@ -459,8 +524,8 @@ canopy_rcl = reclassify_raster( canopy,
 		reclass_table, 
 		output_filename=os.path.join(output_path, output_name.replace('.tif','_canopy_rcl.tif')), 
 		output_format='GTiff',
-		x_block_size=canopy.RasterXSize, 
-		y_block_size=canopy.RasterYSize )
+		gdal_data_type=gdal.GDT_Float32,
+		block_size=[canopy.RasterXSize, canopy.RasterYSize] )
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
@@ -472,8 +537,8 @@ landcover_rcl = reclassify_raster(landcover,
 		reclass_table,  
 		output_filename=os.path.join(output_path, output_name.replace('.tif','_landcover_rcl.tif')), 
 		output_format='GTiff', 
-		x_block_size=landcover.RasterXSize, 
-		y_block_size=landcover.RasterYSize)
+		gdal_data_type=gdal.GDT_Float32,
+		block_size=[landcover.RasterXSize, landcover.RasterYSize] )
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
@@ -499,22 +564,22 @@ combined_rcl = reclassify_raster(combined,
 		reclass_table, 
 		output_filename=os.path.join(output_path, output_name.replace('.tif','_combined_rcl.tif')), 
 		output_format='GTiff',
-		x_block_size=combined.RasterXSize, 
-		y_block_size=combined.RasterYSize)
+		gdal_data_type=gdal.GDT_Float32,
+		block_size=[combined.RasterXSize, combined.RasterYSize] )
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 # step 8 
 # overlay with the TNF Cover Type
-
-base_rst = combined_rcl
-cover_rst = gdal.Open(os.path.join(file_path,'TNFCoverType.tif'))
+base_rst = gdal.Open(os.path.join(output_path, output_name.replace('.tif','_combined_rcl.tif'))) # temp
+# base_rst = combined_rcl
+cover_rst = gdal.Open(os.path.join(file_path,'TNFCoverType_OtherVeg_and_Alpine_MLedit.tif'))
 cover_value = [5,6]
 out_cover_value = [5,6]
-output_filename = os.path.join(output_path, output_name.replace('.tif','_add_TNFCoverType.tif'))
+output_filename = os.path.join(output_path, output_name.replace('.tif','_add_TNFCoverType_v2.tif'))
 
-if os.path.exists(os.path.join(output_path, output_name.replace('.tif','_add_TNFCoverType.tif'))):
-	os.unlink(os.path.join(output_path, output_name.replace('.tif','_add_TNFCoverType.tif')))
+if os.path.exists(os.path.join(output_path, output_name.replace('.tif','_add_TNFCoverType_v2.tif'))):
+	os.unlink(os.path.join(output_path, output_name.replace('.tif','_add_TNFCoverType_v2.tif')))
 
 data_type=gdal.GDT_Float32
 creation_options=["COMPRESS=LZW"]
@@ -530,10 +595,45 @@ TNF_cover_added = overlay_cover(base_rst,
 		y_block_size=base_rst.RasterYSize )
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
+# this is the new intermediary step that only keeps the harvest data that overlays
+#  the cover classes in the TNF_Cover raster
+# TNF_arr = TNF_cover_added.GetRasterBand(1).ReadAsArray()
+
+
+# SEAK_2ndGrowth_arr = SEAK_2ndGrowth.GetRasterBand(1).ReadAsArray()
+
+# SEAK_2ndGrowth_arr[np.logical_and(TNF_arr < 0, SEAK_2ndGrowth_arr != 0)] = 0
+# SEAK_2ndGrowth_noveg.GetRasterBand(1).WriteArray(SEAK_2ndGrowth_arr)
+
+# SEAK_2ndGrowth_noveg.FlushCache()
+# SEAK_2ndGrowth_noveg.GetRasterBand(1).ComputeStatistics(0)
+# SEAK_2ndGrowth = None
+
+## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
+# we also need to solve an issue where the pixels with values not upland coincident
+#  with the harvest to upland.
+# SEAK_2ndGrowth = SEAK_2ndGrowth_noveg
+TNF_cover_added = TNF_cover_added
+TNF_cover_added_arr = TNF_cover_added.GetRasterBand(1).ReadAsArray()
+TNF_cover_added_copy = np.copy(TNF_cover_added_arr)
+
+SEAK_2ndGrowth = gdal.Open(os.path.join(file_path,'SEAK_2ndGrowth.tif'), gdal.GA_ReadOnly)
+SEAK_2ndGrowth_arr = SEAK_2ndGrowth.GetRasterBand(1).ReadAsArray()
+
+TNF_cover_added_copy[np.logical_and(np.logical_or(TNF_cover_added_arr > 1 , TNF_cover_added_arr < 5), \
+		SEAK_2ndGrowth_arr > 0 )] = 2 # convert harvested area to upland
+
+driver = gdal.GetDriverByName('GTiff')
+SEAK_2ndGrowth_upland = driver.CreateCopy(os.path.join(output_path, 
+	output_name.replace('.tif','_SEAK_2ndGrowth_to_upland.tif')), SEAK_2ndGrowth, options=creation_options)
+
+SEAK_2ndGrowth_upland.GetRasterBand(1).WriteArray(TNF_cover_added_copy)
+
+## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 
 # ** Changed to final step prior to resampling. **
 #  reclassify erroneous values in Saltwater
-base_rst = TNF_cover_added
+base_rst = SEAK_2ndGrowth_upland
 cover_rst = gdal.Open(os.path.join(file_path,'AKNPLCC_Saltwater.tif'))
 cover_value = 1
 out_cover_value = 1
@@ -558,12 +658,12 @@ saltwater_removed = overlay_cover(base_rst,
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 
 # RESAMPLE OUTPUT TO 1KM
-if os.path.exists('/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/resampled_test_new.tif'):
-	os.unlink('/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/resampled_test_new.tif')
+if os.path.exists(os.path.join(output_path, output_name.replace('.tif','_1km_current_finalmap.tif'))):
+	os.unlink(os.path.join(output_path, output_name.replace('.tif','_1km_current_finalmap.tif')))
 
-resampled_1k = resample( gdal_raster=gdal.Open('/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/LandCarbon_LandCover_BETA_v1_add_TNFCoverType.tif'),
+resampled_1k = resample( gdal_raster=saltwater_removed,
 		epsg_code=3338,
-		output_filename='/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/resampled_test_new.tif',
+		output_filename=os.path.join(output_path, output_name.replace('.tif','_1km_current_finalmap.tif')),
 		method='mode',
 		x_res=1000,
 		y_res=1000,
