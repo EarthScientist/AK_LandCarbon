@@ -1,0 +1,21 @@
+# FROM DAVE McGUIRE AND SPATIAL ECOLOGY LAB
+# - - - - - - - - - - - - - - - - - - - - -
+
+Proposed Cross Walk: 
+
+NLCD Type                          TEM Parameterization
+-------------------------------    -------------------------------------------------
+11 Open Water                       No Veg/Not Modeled
+12 Perennial ice/snow               No Veg/Not Modeled
+22 Developed, Low Intensity         No Veg/Not Modeled
+23 Developed, Medium intensity      No Veg/Not Modeled
+31 Barren Land                      Heath
+41 Deciduous Forest                 Alder (note that sum of grids from 41 and 52 below match the sum from shrub in NALCMS)
+42 Evergreen Forest                 Upland Forest (similar to southeast and southcentral)
+51 Dwarf Shrub                      Shrub tundra
+52 Shrub/Scrub                      Alder
+71 Grassland/Herbaceous             Graminoid Tundra
+72 Sedge/Herbaceous                 Graminoid Tundra
+90 Woody Wetland                    Forested Wetland ( similar to southeast and southcentral )
+95 Emergent Herbaceous Wetlands     Fens ( similar to southeast and southcentral )
+

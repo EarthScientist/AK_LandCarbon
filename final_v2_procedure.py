@@ -8,12 +8,18 @@ import numpy as np
 import scipy as sp
 
 file_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V3'
 master_raster = rasterio.open( os.path.join( file_path,'NLCD_canopy_AKNPLCC.tif' ) )
 meta = master_raster.meta
 
 # consider rasterizing this and making it the final map
-full_extent_shape = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/Frances_ExtendedShoreline_060914/AKNPLCC_Saltwater_with_Kodiak.shp'
+full_extent_shape = fiona.open( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/\
+							Frances_ExtendedShoreline_060914/AKNPLCC_Saltwater_with_Kodiak.shp' )
+
+output_filename = os.path.join( output_path, 'LandCarbon_LandCover_SEAK_v3.tif' )
+full_extent_raster = generate_raster( full_extent_shape.bounds, 1000, output_filename, 
+							crs={'init', 'EPSG:3338'}, bands=1, dtype=rasterio.int32, 
+							driver='GTiff', creation_options=["COMPRESS=LZW"] )
 
 ## saltwater
 saltwater = fiona.open( os.path.join( file_path,'AKNPLCC_Saltwater.shp' ) )
@@ -76,7 +82,7 @@ seak2nd = fiona.open( os.path.join( file_path,'AKNPLCC_2ndGrowth.shp' ) )
 meta = master_raster.meta
 meta.update( crs=crs )
 meta.update( dtype=rasterio.int32 )
-s2_raster = rasterio.open( os.path.join( output_path, 'seak2nd_growth_version2'.tif, 'w', **meta )
+s2_raster = rasterio.open( os.path.join( output_path, 'seak2nd_growth_version2'.tif, 'w', **meta ) )
 
 years = [ int(g['properties']['year']) for g in seak2nd ]
 years_classed = dict([ ( value, key ) for key, value in enumerate( np.unique( np.array( years ) ).tolist() ) ])
@@ -104,8 +110,7 @@ del s2_image, seak2nd
 
 # BEGIN RECLASSIFICATION PROCEDURE:
 # some initial base filename setup
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/v2'
-output_name = 'LandCarbon_LandCover_SEAK_v2.tif'
+# output_name = 'LandCarbon_LandCover_SEAK_v3.tif'
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 
@@ -141,8 +146,9 @@ combined_rcl = reclassify( combined, reclass_list, output_filename, band=1 )
 # step 8 
 # overlay with the TNF Cover Type
 output_filename = os.path.join( output_path, 'overlay_combinercl_ctraster.tif' )
-tnf_cover_added = overlay_modify( combined_rcl, ct_raster, in_cover_values=[5,6], out_cover_values=[5,6], \
-				output_filename=output_filename, rst_base_band=1, rst_cover_band=1 )
+tnf_cover_added = overlay_modify( combined_rcl, ct_raster, in_cover_values=[5,6], 
+									out_cover_values=[5,6], output_filename=output_filename, 
+									rst_base_band=1, rst_cover_band=1 )
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
 # we also need to solve an issue where the pixels with values not upland coincident
@@ -171,10 +177,23 @@ sw_removed = overlay_modify( s2_removed, sw_raster, in_cover_values=[1], out_cov
 
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
-# resampling to the 1km grid is needed here, should be easy, but think of best way
-# to do it without causing a ruckus when mosaicking...
+# resampling to the 1km grid 
 
+# get the raster bands to be regridded as arrays
+band1 = sw_raster.read_band( 1 )
+band2 = full_extent_raster.read_band( 1 )
 
+# a make an all zeros copy of the band 2 
+band2 = np.zeros_like( band2 )
+
+# set a common crs (in this case it is the same as I want to regrid not reproject)
+crs = {'init':'EPSG:3338'}
+src_transform = sw_raster.transform
+dst_transform = full_extent_raster.transform
+
+# run the resampling using nearest neighbor resampling
+reproject( band1, band2, src_transform=src_transform, src_crs=crs, dst_transform=dst_transform, \
+			dst_crs=crs, resampling=RESAMPLING.nearest )
 
 
 # cleanup the file handles before loading into a  GIS
