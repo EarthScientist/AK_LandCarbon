@@ -1,4 +1,8 @@
 # finalizing rasterio back-end functionality for processing landcover data
+import rasterio, fiona, os, sys
+import numpy as np
+import scipy as sp
+
 
 def generate_raster( bounds, resolution, output_filename, crs={}, bands=1, dtype=rasterio.float32,
 	driver='GTiff', creation_options=["COMPRESS=LZW"] ):
@@ -88,11 +92,11 @@ def reclassify( rasterio_rst, reclass_list, output_filename, band=1 ):
 	meta = rasterio_rst.meta
 
 	with rasterio.open( output_filename, mode='w', **meta ) as out_rst:
-		for idx,window in rasterio_rst_1.block_windows( 1 ):
-			band = rasterio_rst.read_band( band, window=window )
+		for idx,window in rasterio_rst.block_windows( 1 ):
+			band_arr = rasterio_rst.read_band( band, window=window )
 			for rcl in reclass_list:
-				band[ np.logical_and( band >= rcl[0], band < rcl[1] ) ] = rcl[2]
-				out_rst.write_band( band, window=window )
+				band_arr[ np.logical_and( band_arr >= rcl[0], band_arr < rcl[1] ) ] = rcl[2]
+				out_rst.write_band( band, band_arr, window=window )
 	return rasterio.open( output_filename )
 
 
@@ -156,18 +160,8 @@ def overlay_modify( rasterio_rst_base, rasterio_rst_cover, in_cover_values, out_
 	# get the known raster metadata
 	meta = rasterio_rst_base.meta
 
-	with rasterio.open( output_filename, 
-						mode='w', 
-						driver='GTiff', 
-						width=meta['width'], 
-						height=meta['height'], 
-						count=meta['count'], 
-						dtype=meta['dtype'], 
-						nodata=meta['nodata'], 
-						crs=meta['crs'], 
-						transform=meta['transform'] ) as out_rst:
-
-		for idx,window in rasterio_rst_1.block_windows( 1 ):
+	with rasterio.open( output_filename, mode='w', **meta ) as out_rst:
+		for idx,window in rasterio_rst_base.block_windows( 1 ):
 			base_band = rasterio_rst_base.read_band( rst_base_band, window=window )
 			cover_band = rasterio_rst_cover.read_band( rst_cover_band, window=window )
 			for rcl in zip( in_cover_values, out_cover_values ):

@@ -1,9 +1,12 @@
-
 # import some modules
 import os, fiona, rasterio
 from rasterio import features
 import numpy as np
 import scipy as sp
+
+os.chdir( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE' )
+
+from final_v2_library import *
 
 # pre-process the shapefiles
 full_extent_shape = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/Frances_ExtendedShoreline_060914/AKNPLCC_Saltwater_with_Kodiak.shp'

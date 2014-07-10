@@ -34,7 +34,7 @@ saltwater = fiona.open( os.path.join( file_path,'AKNPLCC_Saltwater.shp' ) )
 crs = saltwater.crs # will be the base coordsys for this preprocessing
 meta.update( crs=crs )
 meta.update( dtype=rasterio.int32 )
-sw_raster = rasterio.open( os.path.join( output_path, 'saltwater_kodiak.tif'), 'w', **meta )
+sw_raster = rasterio.open( os.path.join( output_path, 'saltwater_kodiak.tif' ), 'w', **meta )
 
 sw_image = features.rasterize(
 			( ( g['geometry'], 1 ) for g in saltwater ),
@@ -69,4 +69,4 @@ sw_removed = overlay_modify( s2_removed, sw_raster, in_cover_values=[1], out_cov
 
 # resample the raster to 1km 
 
-# output the raster and close all the file handles
+# output the raster and close all the file handles	

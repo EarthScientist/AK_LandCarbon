@@ -182,25 +182,16 @@ def combine( rasterio_rst_1, rasterio_rst_2, combine_list, output_filename ):
 
 
 
-def overlay_cover( rasterio_rst_base, rasterio_rst_cover, in_cover_value, out_cover_value, output_filename, rst_base_band=1, rst_cover_band=1 ):
+def overlay_cover( rasterio_rst_base, rasterio_rst_cover, in_cover_value, 
+					out_cover_value, output_filename, rst_base_band=1, rst_cover_band=1 ):
 	'''
-	we need to be able to overlay a set of polygons on a raster and burn in the values we want to 
-	the raster image at those locations
+	we need to be able to overlay a set of polygons on a raster and burn in the 
+	values we want to the raster image at those locations
 	
 	'''
 	meta = rasterio_rst_base.meta
 
-	with rasterio.open( output_filename, 
-						mode='w', 
-						driver='GTiff', 
-						width=meta['width'], 
-						height=meta['height'], 
-						count=meta['count'], 
-						dtype=meta['dtype'], 
-						nodata=meta['nodata'], 
-						crs=meta['crs'], 
-						transform=meta['transform'] ) as out_rst:
-
+	with rasterio.open( output_filename, mode='w', **meta ) as out_rst:
 		# get the band information
 		for idx,window in rasterio_rst_1.block_windows( 1 ):
 			# out_band = out_rst.read_band( rst_base_band, window=window ) 
