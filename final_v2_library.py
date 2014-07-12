@@ -170,3 +170,27 @@ def overlay_modify( rasterio_rst_base, rasterio_rst_cover, in_cover_values, out_
 
 	return rasterio.open( output_filename )
 
+
+
+def overlay_cover( rasterio_rst_base, rasterio_rst_cover, in_cover_value, 
+					out_cover_value, output_filename, rst_base_band=1, rst_cover_band=1 ):
+	'''
+	we need to be able to overlay a set of polygons on a raster and burn in the 
+	values we want to the raster image at those locations
+	
+	'''
+	meta = rasterio_rst_base.meta
+
+	with rasterio.open( output_filename, mode='w', **meta ) as out_rst:
+		# get the band information
+		for idx,window in rasterio_rst_base.block_windows( 1 ):
+			# out_band = out_rst.read_band( rst_base_band, window=window ) 
+			base_band = rasterio_rst_base.read_band( rst_base_band, window=window )
+			cover_band = rasterio_rst_cover.read_band( rst_cover_band, window=window )
+
+			# out_band = np.copy( base_band )
+			base_band[cover_band == in_cover_value] = out_cover_value
+			out_rst.write_band( 1, base_band, window=window )
+
+	return rasterio.open( output_filename )
+

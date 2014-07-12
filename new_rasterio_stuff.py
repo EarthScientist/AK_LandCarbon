@@ -193,7 +193,7 @@ def overlay_cover( rasterio_rst_base, rasterio_rst_cover, in_cover_value,
 
 	with rasterio.open( output_filename, mode='w', **meta ) as out_rst:
 		# get the band information
-		for idx,window in rasterio_rst_1.block_windows( 1 ):
+		for idx,window in rasterio_rst_base.block_windows( 1 ):
 			# out_band = out_rst.read_band( rst_base_band, window=window ) 
 			base_band = rasterio_rst_base.read_band( rst_base_band, window=window )
 			cover_band = rasterio_rst_cover.read_band( rst_cover_band, window=window )

@@ -4,9 +4,7 @@ from rasterio import features
 import numpy as np
 import scipy as sp
 
-os.chdir( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE' )
 
-from final_v2_library import *
 
 # pre-process the shapefiles
 full_extent_shape = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/Frances_ExtendedShoreline_060914/AKNPLCC_Saltwater_with_Kodiak.shp'
@@ -136,6 +134,16 @@ del s2_image, seak2nd
 # PREPROCESSING COMPLETE!
 
 # # # # # # # # # 
+
+def add_crs( in_rasterio_rst, crs={}, ouput_filename ):
+	nbands = in_rasterio_rst.count
+	meta = in_rasterio_rst.meta
+	meta.update( crs=crs )
+	new = rasterio.open( output_filename, mode='w', **meta )
+	for band in range(nbands)+1:
+		arr = in_rasterio_rst.read_band( band )
+		new.write_band( band, arr )
+	return new
 
 
 

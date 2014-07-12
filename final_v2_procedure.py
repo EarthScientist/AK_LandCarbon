@@ -69,7 +69,7 @@ ct_image = features.rasterize(
 ct_image = ct_image.astype( np.int32 )
 ct_raster.write_band( 1, ct_image )
 ct_raster.close()
-del ct_image, tnf_covertype
+del ct_image, covertype
 
 
 ## seak_2nd_growth
@@ -141,6 +141,7 @@ combined_rcl = reclassify( combined, reclass_list, output_filename, band=1 )
 
 # step 8 
 # overlay with the TNF Cover Type
+ct_raster = rasterio.open( os.path.join( output_path, 'tnf_covertype_version3.tif') )
 output_filename = os.path.join( output_path, 'overlay_combinercl_ctraster.tif' )
 tnf_cover_added = overlay_modify( combined_rcl, ct_raster, in_cover_values=[5,6], 
 									out_cover_values=[5,6], output_filename=output_filename, 
@@ -152,7 +153,7 @@ tnf_cover_added = overlay_modify( combined_rcl, ct_raster, in_cover_values=[5,6]
 # SEAK_2ndGrowth = SEAK_2ndGrowth_noveg
 output_filename = os.path.join( output_path, 'seak2nd_growth_version3_removed.tif' )
 tnf_ct_band = tnf_cover_added.read_band(1)
-s2_raster = rasterio.open(  )
+s2_raster = rasterio.open( os.path.join( output_path, 'seak2nd_growth_version3.tif') )
 s2_band = s2_raster.read_band(1)
 tnf_ct_copy = np.copy( tnf_ct_band )
 tnf_ct_copy[ np.logical_and( np.logical_or(tnf_ct_band > 1, tnf_ct_band < 5 ), \
@@ -171,7 +172,7 @@ output_filename = os.path.join( output_path, 'remove_saltwater_version3.tif' )
 # cover_rst = rasterio.open( os.path.join( file_path,'AKNPLCC_Saltwater.tif' ) )
 # cover_value = 1
 # out_cover_value = 1
-s2_removed = rasterio.open( os.path.join( output_path, 'seak2nd_growth_version3_removed_B.tif' ) )
+s2_removed = rasterio.open( os.path.join( output_path, 'seak2nd_growth_version3_removed.tif' ) )
 sw_raster = rasterio.open( os.path.join( output_path, 'saltwater_version3.tif' ) )
 sw_removed = overlay_cover( s2_removed, sw_raster, in_cover_value=1, out_cover_value=1, \
 							output_filename=output_filename, rst_base_band=1, rst_cover_band=1 )

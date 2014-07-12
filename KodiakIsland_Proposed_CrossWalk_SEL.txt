@@ -1,5 +1,6 @@
+# - - - - - - - - - - - - - - - - - - - - - - 
 # FROM DAVE McGUIRE AND SPATIAL ECOLOGY LAB
-# - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - -
 
 Proposed Cross Walk: 
 
@@ -19,3 +20,46 @@ NLCD Type                          TEM Parameterization
 90 Woody Wetland                    Forested Wetland ( similar to southeast and southcentral )
 95 Emergent Herbaceous Wetlands     Fens ( similar to southeast and southcentral )
 
+
+# - - - - - - - - - - - - - - - - - - - - - - 
+# CURRENT SC/SEAK MAP LEGEND:
+# - - - - - - - - - - - - - - - - - - - - - - 
+
+Cell Value  Description
+1   No Veg (rock, snow/ice, saltwater, freshwater, developed areas, sand, clay)
+2   Upland
+3   Forested Wetland
+4   Fen
+5   Other Veg
+6   Alpine (optional)
+7   Heath?
+8   Shrub Tundra
+9   Alder
+10  Gramminoid Tundra
+NoData  Areas of no data (cells outside project area)
+
+reclass_list = [ [ 11, 24, 1 ], [31, 32, 7], [41, 42, 9 ], [51, 52, 8], [52, 53, 9], [71, 73, 10], [90, 91, 3], [95, 96, 4] ] 
+
+# - - - - - - - - - - - - - - - - - - - - - - 
+# INTEGRATED (MOSIACKED WITH ALF / IEM VEG) MAP LEGEND:
+# - - - - - - - - - - - - - - - - - - - - - - 
+Legend: 
+0 - NoVeg 
+1 - Black Spruce 
+2 - White Spruce 
+3 - Deciduous 
+4 - Shrub Tundra 
+5 - Graminoid  Tundra 
+6 - Wetland Tundra 
+7 - Barren lichen-moss 
+8 - Temperate Rainforest (there will still be some in Canada to Contend with)
+9 - Heath
+10 - Upland
+11 - Forested Wetland
+12 - Fen
+13 - Other Veg
+14 - Alpine (optional)
+15 - Alder
+
+# potential reclassification for the Kodaiak portion to the IEM Veg at large
+[ [11, 24, 1], [42, 43, 2], [51, 52, 4], [52, 53, 15], [71, 73, 5], [90, 91, 10], [95, 100, 11] ]
