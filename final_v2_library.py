@@ -194,3 +194,51 @@ def overlay_cover( rasterio_rst_base, rasterio_rst_cover, in_cover_value,
 
 	return rasterio.open( output_filename )
 
+
+def world2Pixel( geotransform, x, y ):
+	"""
+	Uses a geotransform (gdal.GetGeoTransform(), or rasterio equivalent)
+	to calculate the pixel location of a geospatial coordinate
+	"""
+	ulX = geotransform[0]
+	ulY = geotransform[3]
+	xDist = geotransform[1]
+	yDist = geotransform[5]
+	rtnX = geotransform[2]
+	rtnY = geotransform[4]
+	pixel = int((x - ulX) / xDist)
+	line = int((ulY - y) / xDist)
+	return ( pixel, line )
+
+
+def bounds_to_window( geotransform, rasterio_bounds ):
+	'''
+	return a rasterio window tuple-of-tuples used to read a subset
+	of a rasterio raster file into a numpy array.  This is done by 
+	passing the window argument in the:
+		 dataset.read_band() or dataset.write_band()
+
+	This function returns an object acceptable for use as a window 
+	passed to the window argument.
+
+	Notes:
+	A window is a view onto a rectangular subset of a raster dataset
+	and is described in rasterio by a pair of range tuples.
+	window = ((row_start, row_stop), (col_start, col_stop))
+
+	arguments:
+		geotransform = 6-element rasterio transform 
+			* typically from dataset.transform
+		rasterio_bounds = (lower left x, lower left y, upper right x, upper right y)
+			* typically from dataset.bounds in rasterio
+	** This also requires the world2Pixel function.
+
+	Depends:
+		rasterio
+
+	'''
+	ll = rasterio_bounds[:2]
+	ur = rasterio_bounds[2:]
+	ll_xy, ur_xy = [ world2Pixel( geotransform, x, y ) for x, y in [ll, ur] ]
+	return (( ur_xy[1], ll_xy[1]), ( ll_xy[0], ur_xy[0]))
+

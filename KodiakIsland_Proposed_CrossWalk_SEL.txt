@@ -7,7 +7,7 @@ Proposed Cross Walk:
 NLCD Type                          TEM Parameterization
 -------------------------------    -------------------------------------------------
 11 Open Water                       No Veg/Not Modeled
-12 Perennial ice/snow               No Veg/Not Modeled
+12 Perennial ic e/snow               No Veg/Not Modeled
 22 Developed, Low Intensity         No Veg/Not Modeled
 23 Developed, Medium intensity      No Veg/Not Modeled
 31 Barren Land                      Heath
@@ -61,5 +61,14 @@ Legend:
 14 - Alpine (optional)
 15 - Alder
 
-# potential reclassification for the Kodaiak portion to the IEM Veg at large
-[ [11, 24, 1], [42, 43, 2], [51, 52, 4], [52, 53, 15], [71, 73, 5], [90, 91, 10], [95, 100, 11] ]
+** 16 no veg
+** 17 saltwater
+
+
+
+# some RGBA stuff
+cmap = {0: (255,255,255,255), 1: (0,85,0,255), 2: (85,170,0,255), 3: (255,255,127,255), 4: (170,170,0,255), 5: (170,170,127,255), 6: (199,229,219,255), 7: (156,206,227,255), 8: (100,164,204,255), 9: (44,123,182,255), 10: (,,,), 11: (,,,), 12 : (,,,), 13: (,,,), 14: (,,,), 15: (,,,), 16: (,,,), 17: (,,,), 18: (,,,) }
+with rasterio.open(filename, 'w', ...) as dst:
+    dst.write_band(1, array)
+    dst.write_colormap(1, cmp)
+
