@@ -35,8 +35,8 @@ kodiak_1km_rst = rasterio.open( kodiak_1km )
 seak_30m_rst = rasterio.open( seak_30m ) # these are currently for test purposes
 seak_1km_rst = rasterio.open( seak_1km )
 akcan_rst = rasterio.open( akcan ) # this is an *only* 1km product
-output_filename = seak_rst.name.replace( '.tif', '_dtype_mod.tif' )
-seak_mod = modify_dtype( seak_rst, output_filename, rasterio_dtype=rasterio.uint8, band=1 )
+# output_filename = seak_rst.name.replace( '.tif', '_dtype_mod.tif' )
+# seak_mod = modify_dtype( seak_rst, output_filename, rasterio_dtype=rasterio.uint8, band=1 )
 
 
 # # # # # # # 
@@ -150,7 +150,7 @@ output_filename = os.path.join(output_path, os.path.basename(akcan_rst.name).rep
 reclass_list = [[0,1,16]] # good
 akcan_rcl = reclassify( akcan_rst, reclass_list, output_filename, band=1 )
 # mask out Kodiak Island 
-kodiak_mask_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V3/kodiak_mask.tif'
+kodiak_mask_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/merge_seak_mask/kodiak_mask.tif'
 kodiak_mask = rasterio.open( kodiak_mask_path )
 kodiak_mask_arr = kodiak_mask.read_band( 1 )
 akcan_rcl_arr = akcan_rcl.read_band( 1 )
@@ -208,7 +208,7 @@ nlcd_new = rasterio.open( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project
 nlcd_new.write_band( 1, arr )
 nlcd_new.close()
 
-full_ext_filename = os.path.join( output_path, 'IEM_LandCarbon_Vegetation_1km_FullExtent_Step1.tif' )
+full_ext_filename = os.path.join( output_path, 'IEM_LandCarbon_Vegetation_FullExtent_1km_Step1.tif' )
 final = rasterio.open( full_ext_filename )
 meta = final.meta
 meta.update( compress='lzw' )
@@ -290,7 +290,7 @@ if os.path.exists( output_filename ):
 # write it out
 output_final_veg = rasterio.open( output_filename, mode='w', **meta )
 
-output_final_veg.write_band( 1, final_veg_arr )
+output_final_veg.write_band( 1, final_veg_arr.astype( rasterio.uint8 ) )
 output_final_veg.close()
 
 
