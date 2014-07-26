@@ -13,6 +13,20 @@ seak_30m = os.path.join( output_path, 'LandCarbon_Vegetation_SC_SEAK_30m_v0_1.ti
 seak_1km = os.path.join( output_path, 'LandCarbon_Vegetation_SC_SEAK_1km_v0_1.tif' )
 akcan = '/Data/Base_Data/ALFRESCO_formatted/ALFRESCO_Master_Dataset/ALFRESCO_Model_Input_Datasets/AK_CAN_Inputs/Landcover/LandCover_alf_2005.tif'
 
+# create a mask of the areas of data to nodata in the NLCD rasters from FRANCES BILES
+nlcd = rasterio.open('/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted/NLCD_land_cover_AKNPLCC.tif')
+arr  = nlcd.read_band(1)
+arr[ np.logical_or( arr != 0, arr != 255 ) ] = 1
+arr[ np.logical_and( arr == 0, arr == 255 ) ] = 0
+
+meta = nlcd.meta
+meta.update( compress='lzw' )
+
+nlcd_new = rasterio.open( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V3/nlcd_mask.tif', mode='w',  **meta )
+nlcd_new.write_band( 1, arr )
+nlcd_new.close()
+
+
 # modify dtype raster band
 def modify_dtype( in_rasterio_rst, output_filename, rasterio_dtype=rasterio.float32, band=1 ):
 	'''
@@ -40,9 +54,11 @@ akcan_rst = rasterio.open( akcan ) # this is an *only* 1km product
 # # # # # # # 
 # # run the merge to the SC/SEAK and Kodiak Extent and classification at 30m native NLCD resolution
 # # # # # # #
+# KODIAK RECLASS
 # change saltwater to noveg
 kodiak_30m_arr = kodiak_30m_rst.read_band( 1 )
-kodiak_30m_arr[ kodiak_30m_arr == 17 ] = 0
+kodiak_30m_arr[ kodiak_30m_arr == 17 ] = 255
+kodiak_30m_arr[ kodiak_30m_arr == 1 ] = 255
 
 # generate a new raster
 meta = kodiak_30m_rst.meta 
@@ -53,6 +69,26 @@ kodiak_30m_rcl = rasterio.open( output_filename, mode='w', **meta )
 
 kodiak_30m_rcl.write_band( 1, kodiak_30m_arr )
 kodiak_30m_rcl.close()
+
+# SEAK RECLASS
+nlcd_mask = rasterio.open( nlcd_new.name )
+nlcd_mask_arr = nlcd_mask.read_band( 1 )
+nlcd_mask.close()
+
+seak_30m_arr = seak_30m_rst.read_band( 1 )
+seak_30m_arr[ seak_30m_arr <= 1 ] = 255
+seak_30m_arr[ np.logical_and( seak_30m_arr == 255,  nlcd_mask_arr == 1 ) ] = 1
+
+# generate a new raster
+meta = seak_30m_rst.meta 
+meta.update( compress='lzw' )
+
+output_filename = seak_30m_rst.name.replace( '.tif', '_rcl.tif' )
+seak_30m_rcl = rasterio.open( output_filename, mode='w', **meta )
+
+seak_30m_rcl.write_band( 1, seak_30m_arr )
+seak_30m_rcl.close()
+
 
 # now run the actual mosaicking at the 30m resolution
 output_filename = os.path.join( output_path, 'LandCarbon_Vegetation_30m_seak_v0_1.tif' )
@@ -75,9 +111,10 @@ os.system( command )
 # # # # # # # 
 # # run the merge to the SC/SEAK and Kodiak Extent and classification to 1km resolution for IEM integration
 # # # # # # #
-
+#change saltwater to OOB
 kodiak_1km_arr = kodiak_1km_rst.read_band( 1 )
-kodiak_1km_arr[ kodiak_1km_arr == 17 ] = 0
+kodiak_1km_arr[ kodiak_1km_arr == 17 ] = 255
+kodiak_30m_arr[ kodiak_30m_arr == 1 ] = 255
 
 # generate a new raster
 meta = kodiak_1km_rst.meta 
@@ -88,6 +125,26 @@ kodiak_1km_rcl = rasterio.open( output_filename, mode='w', **meta )
 
 kodiak_1km_rcl.write_band( 1, kodiak_1km_arr )
 kodiak_1km_rcl.close()
+
+# SEAK RECLASS
+nlcd_mask = rasterio.open( nlcd_new.name )
+nlcd_mask_arr = nlcd_mask.read_band( 1 )
+nlcd_mask.close()
+
+seak_1km_arr = seak_1km_rst.read_band( 1 )
+seak_1km_arr[ seak_1km_arr <= 1 ] = 255
+seak_1km_arr[ np.logical_and( seak_1km_arr == 255,  nlcd_mask_arr == 1 ) ] = 1
+
+# generate a new raster
+meta = seak_1km_rst.meta 
+meta.update( compress='lzw' )
+
+output_filename = seak_1km_rst.name.replace( '.tif', '_rcl.tif' )
+seak_1km_rcl = rasterio.open( output_filename, mode='w', **meta )
+
+seak_1km_rcl.write_band( 1, seak_1km_arr )
+seak_1km_rcl.close()
+
 
 # now run the actual mosaicking at the 1km resolution
 output_filename = os.path.join( output_path, 'LandCarbon_Vegetation_1km_seak_v0_1.tif' )
@@ -180,19 +237,6 @@ os.system( command )
 
 
 # # This is what seems to be the way to do it
-# create a mask of the areas of data to nodata in the NLCD from FRANCES
-nlcd = rasterio.open('/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted/NLCD_land_cover_AKNPLCC.tif')
-arr  = nlcd.read_band(1)
-arr[ np.logical_or( arr != 0, arr != 255 ) ] = 1
-arr[ np.logical_and( arr == 0, arr == 255 ) ] = 0
-
-meta = nlcd.meta
-meta.update( compress='lzw' )
-
-nlcd_new = rasterio.open( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V3/nlcd_mask.tif', mode='w',  **meta )
-nlcd_new.write_band( 1, arr )
-nlcd_new.close()
-
 full_ext_filename = os.path.join( output_path, 'IEM_LandCarbon_Vegetation_1km_FullExtent_Step1.tif' )
 final = rasterio.open( full_ext_filename )
 meta = final.meta
