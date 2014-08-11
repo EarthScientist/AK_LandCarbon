@@ -8,7 +8,6 @@
 screen ipython2.7 -i /workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE/final_v2_procedure.py
 # run kodiak ( from Dave McGuire and Team - 2014 )
 screen ipython2.7 -i /workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE/kodiak_reclassification_procedure.py
-
 ## run the merge code:
 screen ipython2.7 -i /workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE/merge_landcover.py
 

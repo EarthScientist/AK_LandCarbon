@@ -13,7 +13,7 @@ from final_v2_library import *
 
 # some initial setup
 file_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V3'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V4'
 master_raster = rasterio.open( os.path.join( file_path,'NLCD_canopy_AKNPLCC.tif' ) )
 meta = master_raster.meta
 meta.update( dtype=rasterio.int32, compress='lzw' )
@@ -76,7 +76,7 @@ tnf_cover_added = overlay_modify( combined_rcl, ct_raster, in_cover_values=[5,6]
 # we also need to solve an issue where the pixels with values not upland coincident
 #  with the harvest to upland.
 # SEAK_2ndGrowth = SEAK_2ndGrowth_noveg
-output_filename = os.path.join( intermediate_path, 'seak2nd_growth_removed.tif' )
+output_filename = os.path.join( intermediate_path, 'seak2nd_growth_removed_seak.tif' )
 tnf_ct_band = tnf_cover_added.read_band(1)
 s2_raster = rasterio.open( os.path.join( rasterized_path, 'seak2nd_growth_seak.tif') )
 s2_band = s2_raster.read_band(1)
@@ -92,51 +92,24 @@ s2_removed.close()
 
 # ** Changed to final step prior to resampling. **
 #  reclassify erroneous values in Saltwater
-output_filename = os.path.join( output_path, 'LandCarbon_Vegetation_SC_SEAK_30m_v0_1.tif' )
-s2_removed = rasterio.open( os.path.join( intermediate_path, 'seak2nd_growth_removed.tif' ) )
+output_filename = os.path.join( output_path, 'LandCarbon_Vegetation_SC_SEAK_30m_v0_1.tif' ) 
+s2_removed = rasterio.open( os.path.join( intermediate_path, 'seak2nd_growth_removed_seak.tif' ) )
 sw_raster = rasterio.open( os.path.join( rasterized_path, 'saltwater_seak.tif' ) )
-sw_removed = overlay_cover( s2_removed, sw_raster, in_cover_value=1, out_cover_value=1, \
+sw_added = overlay_cover( s2_removed, sw_raster, in_cover_value=1, out_cover_value=17, \
 							output_filename=output_filename, rst_base_band=1, rst_cover_band=1 )
+sw_added.close()
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
-
-# generate an output full_extent
-# consider rasterizing this and making it the final map
-# full_extent_shape = fiona.open( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/Frances_ExtendedShoreline_060914/AKNPLCC_Saltwater_with_Kodiak.shp' )
 
 output_filename = os.path.join( output_path, 'LandCarbon_Vegetation_SC_SEAK_1km_v0_1.tif' )
-# full_extent_raster = generate_raster( sw_removed.bounds, 1000, output_filename, 
-# 							crs=crs, bands=1, dtype=rasterio.int32, 
-# 							driver='GTiff', creation_options=["COMPRESS=LZW"] )
 
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## 
-
-# resampling to the 1km grid 
-
-# # get the raster bands to be regridded as arrays
-# band1 = sw_removed.read_band( 1 )
-# band2 = full_extent_raster.read_band( 1 )
-
-# # set a common crs (in this case it is the same as I want to regrid not reproject)
-# crs = {'init':'EPSG:3338'}
-# src_transform = sw_raster.transform
-# dst_transform = full_extent_raster.transform
-
-# # run the resampling using nearest neighbor resampling
-# reproject( band1, band2, src_transform=src_transform, src_crs=crs, dst_transform=dst_transform, \
-# 			dst_crs=crs, resampling=RESAMPLING.nearest )
-
-# # cleanup the file handles before loading into a  GIS
-# full_extent_raster.write_band( 1, band2 )
-# full_extent_raster.close()
-
-
-# TEMPORARY FIX FOR RESAMPLING
+# TEMPORARY FIX FOR resampling
 if os.path.exists( output_filename ):
 	os.remove( output_filename )
 
 # this is the regridding fix I am using currently.  It is not perfect and a band-aid fix but it works correctly for now
-command = 'gdalwarp -tr 1000 1000 -r near '+ sw_removed.name + ' ' + output_filename
+command = 'gdalwarp -tr 1000 1000 -r near '+ sw_added.name + ' ' + output_filename
 os.system( command )
 
 print('reclassification complete.')
+

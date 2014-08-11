@@ -69,7 +69,7 @@ def generate_raster( bounds, resolution, output_filename, crs={}, bands=1, dtype
 		height=int(nrows), count=bands, dtype=dtype, crs=crs, transform=geotrans )
 
 
-def reclassify( rasterio_rst, reclass_list, output_filename, band=1 ):
+def reclassify( rasterio_rst, reclass_list, output_filename, band=1, creation_options=dict() ):
 	'''
 	this functuion will take a raster image as input and
 	reclassify its values given in the reclass_list.
@@ -87,9 +87,17 @@ def reclassify( rasterio_rst, reclass_list, output_filename, band=1 ):
 		reclass_list = list of reclassification values * see explanation
 		band = integer marking which band you wnat to return from the raster
 				default is 1.
+		creation_options = gdal style creation options, but in the rasterio implementation
+			* options must be in a dict where the key is the name of the gdal -co and the 
+			  value is the value passed to that flag.  
+			  i.e. 
+			  	["COMPRESS=LZW"] becomes dict([('compress','lzw')])
 
 	'''
+	# this will update the metadata if a creation_options dict is passed as an arg.
 	meta = rasterio_rst.meta
+	if len( creation_options ) < 0:
+		meta.update( creation_options )
 
 	with rasterio.open( output_filename, mode='w', **meta ) as out_rst:
 		for idx,window in rasterio_rst.block_windows( 1 ):
@@ -171,7 +179,6 @@ def overlay_modify( rasterio_rst_base, rasterio_rst_cover, in_cover_values, out_
 	return rasterio.open( output_filename )
 
 
-
 def overlay_cover( rasterio_rst_base, rasterio_rst_cover, in_cover_value, 
 					out_cover_value, output_filename, rst_base_band=1, rst_cover_band=1 ):
 	'''
@@ -210,7 +217,39 @@ def world2Pixel( geotransform, x, y ):
 	line = int((ulY - y) / xDist)
 	return ( pixel, line )
 
+def pixel2World(geotransform, x, y):
+	'''
+	Uses a geotransform (gdal.GetGeoTransform(), or rasterio equivalent)
+	to calculate the centroid location of pixel row/col.
 
+	'''
+	ulX = geotransform[0]
+	ulY = geotransform[3]
+	xDist = geotransform[1]
+	yDist = geotransform[5]
+	coorX = ( ulX + ( x * xDist ) )
+	coorY = ( ulY + ( y * yDist ) )
+	return ( coorX, coorY )
+
+def centroids( rasterio_rst ):
+	'''
+	takes a rasterio raster instance and will return
+	the centroids to all pixel values in a list.
+
+	** this is a convenience function wrapping the 
+	pixel2World() function.
+
+	NOTE: returns centroids in C-order (row-major)
+		* I may build in more order support if there 
+		  is interest from users. *
+
+	depends:
+		rasterio
+
+	'''
+	a,b = [ range(i)  for i in rasterio_rst.shape ]
+	return [ pixel2World( rasterio_rst.transform, ia, ib ) for ia in a for ib in b ]
+	
 def bounds_to_window( geotransform, rasterio_bounds ):
 	'''
 	return a rasterio window tuple-of-tuples used to read a subset
@@ -241,4 +280,20 @@ def bounds_to_window( geotransform, rasterio_bounds ):
 	ur = rasterio_bounds[2:]
 	ll_xy, ur_xy = [ world2Pixel( geotransform, x, y ) for x, y in [ll, ur] ]
 	return (( ur_xy[1], ll_xy[1]), ( ll_xy[0], ur_xy[0]))
+
+
+def modify_dtype( in_rasterio_rst, output_filename, rasterio_dtype=rasterio.float32, band=1 ):
+	'''
+	this helper function will modify the raster dtype on copy
+	to a new dataset.
+
+	MORE DOC NEEDED HERE.
+	'''
+	arr = in_rasterio_rst.read_band( band )
+	arr = arr.astype( rasterio_dtype )
+	meta = in_rasterio_rst.meta
+	meta.update( dtype = rasterio_dtype )
+	out = rasterio.open( output_filename, mode='w', **meta ) 
+	out.write_band( band, arr )
+	return out
 

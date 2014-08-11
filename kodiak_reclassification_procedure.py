@@ -20,7 +20,7 @@ os.chdir( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE' )
 from final_v2_library import *
 
 file_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/KodiakIsland'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V3'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V4'
 landcover = rasterio.open( os.path.join( file_path,'ak_nlcd_2001_land_cover_3130_KodiakIsland_3338.tif' ), crs={'init':'EPSG:3338'} )
 meta = landcover.meta
 
@@ -63,37 +63,13 @@ sw_removed = overlay_modify( landcover_rcl, sw_raster, in_cover_values=[1], out_
 				output_filename=output_filename, rst_base_band=1, rst_cover_band=1 )
 sw_removed.close()
 
-# generate an output full_extent
-# consider rasterizing this and making it the final map
-output_filename = os.path.join( output_path, 'LandCarbon_Vegetation_KodiakIsland_1km_v0_1.tif' )
-# full_extent_raster = generate_raster( landcover.bounds, 1000, output_filename, 
-# 							crs=crs, bands=1, dtype=rasterio.int32, 
-# 							driver='GTiff', creation_options=["COMPRESS=LZW"] )
-
 # resampling to the 1km grid 
-
-# get the raster bands to be regridded as arrays
-# band1 = sw_removed.read_band( 1 )
-# band2 = full_extent_raster.read_band( 1 )
-
-# # set a common crs (in this case it is the same as I want to regrid not reproject)
-# src_transform = sw_removed.transform
-# dst_transform = full_extent_raster.transform
-
-# crs = full_extent_raster.crs
-
-# # run the resampling using nearest neighbor resampling
-# reproject( band1, band2, src_transform=src_transform, src_crs=crs, dst_transform=dst_transform, \
-# 			dst_crs=crs, resampling=RESAMPLING.nearest )
-
-# # cleanup the file handles before loading into a  GIS
-# full_extent_raster.write_band( 1, band2 )
-# full_extent_raster.close()
+output_filename = os.path.join( output_path, 'LandCarbon_Vegetation_KodiakIsland_1km_v0_1.tif' )
 
 if os.path.exists( output_filename ):
 	os.remove( output_filename )
 
-# this is the regridding fix I am using currently.  It is not perfect and a band-aid fix but it works correctly for now
+# this is the regridding fix I am using currently. It is not perfect and a band-aid fix but it works correctly for now
 command = 'gdalwarp -tr 1000 1000 -r near '+ sw_removed.name + ' ' + output_filename
 os.system( command )
 

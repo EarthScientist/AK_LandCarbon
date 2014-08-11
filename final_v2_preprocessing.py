@@ -12,7 +12,7 @@ os.chdir( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE' )
 from final_v2_library import *
 
 file_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V3'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V4'
 master_raster = rasterio.open( os.path.join( file_path,'NLCD_canopy_AKNPLCC.tif' ) )
 meta = master_raster.meta
 
