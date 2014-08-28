@@ -21,19 +21,6 @@ seak_30m_rst = rasterio.open( seak_30m ) # these are currently for test purposes
 seak_1km_rst = rasterio.open( seak_1km )
 akcan_rst = rasterio.open( akcan ) # this is an *only* 1km product
 
-# create a mask of the areas of data to nodata in the NLCD rasters from FRANCES BILES
-nlcd = rasterio.open('/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted/NLCD_land_cover_AKNPLCC.tif')
-arr  = nlcd.read_band(1)
-arr[ arr != 0 ] = 999
-arr[ arr != 255 ] = 999
-arr[ arr != 999 ] = 0
-arr[ arr == 999 ] = 1
-
-meta = nlcd.meta
-meta.update( compress='lzw' )
-nlcd_mask = rasterio.open( os.path.join( output_path, 'nlcd_mask.tif' ), mode='w',  **meta )
-nlcd_mask.write_band( 1, arr )
-nlcd_mask.close()
 
 # # # # # # # 
 # # run the merge to the SC/SEAK and Kodiak Extent and classification at 30m native NLCD resolution
@@ -55,7 +42,7 @@ kodiak_30m_rcl.write_band( 1, kodiak_30m_arr )
 kodiak_30m_rcl.close()
 
 # SEAK RECLASS
-nlcd_mask = rasterio.open( nlcd_mask.name )
+nlcd_mask = rasterio.open( os.path.join( output_path, 'nlcd_mask.tif' )
 nlcd_mask_arr = nlcd_mask.read_band( 1 )
 nlcd_mask.close()
 
@@ -266,7 +253,7 @@ iem_arr[ iem_arr != 255 ] = 1
 iem_arr[ iem_arr != 1 ] = 0
 
 meta = iem_lc.meta
-meta.update(compress='lzw')
+meta.update( compress='lzw' )
 iem_mask = rasterio.open( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/merge_seak_mask/IEM_Mask.tif', mode='w', **meta )
 iem_mask.write_band( 1, iem_arr )
 iem_mask.close()
@@ -304,5 +291,30 @@ output_final_veg = rasterio.open( output_filename, mode='w', **meta )
 
 output_final_veg.write_band( 1, final_veg_arr.astype( rasterio.uint8 ) )
 output_final_veg.close()
+
+
+# # # # # NEW STUFF! # # # # # #
+def cover( large_rst, small_rst, large_rst_fill_vals, output_filename, band=1 ):
+	'''
+	function that will fill by covering over certain values in the map in a loop.
+
+	[ MORE DOC TO COME ]
+	
+	'''
+	window = bounds_to_window( large_rst.transform.to_gdal(), small_rst.bounds )
+	large_arr_window = large_rst.read_band( band, window=window )
+	small_arr = small_rst.read_band( band )
+	for i in np.unique( small_arr ):
+		for j in large_rst_fill_vals:
+			large_arr_window[ np.logical_and( small_arr == i, large_arr_window == j ) ] = i
+	meta = large_rst.meta
+	meta.update( compress='lzw' )
+	out = rasterio.open( output_filename, mode='w', **meta )
+	large_arr = large_rst.read_band( 1 )
+	out.write_band( band, large_arr )
+	out.write_band( band, large_arr_window, window=window )
+	return out
+
+
 
 

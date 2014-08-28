@@ -32,7 +32,7 @@ Cell Value  Description
 4   Fen
 5   Other Veg
 6   Alpine (optional)
-7   Heath?
+7   Heath
 8   Shrub Tundra
 9   Alder
 10  Gramminoid Tundra

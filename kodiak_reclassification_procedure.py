@@ -8,7 +8,6 @@
 #  ALASKA FAIRBANKS.
 # # # # # 
 
-import pprint
 import os, sys, rasterio, fiona
 from rasterio import features
 from rasterio.warp import RESAMPLING, reproject

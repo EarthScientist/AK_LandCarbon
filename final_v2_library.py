@@ -64,9 +64,10 @@ def generate_raster( bounds, resolution, output_filename, crs={}, bands=1, dtype
 
 	# generate a geotrans here
 	geotrans = [ maxX, resolution, 0, maxY, 0, ( -1 * resolution ) ]
-
-	return rasterio.open( output_filename, mode='w', driver=driver, width=int(ncols), 
-		height=int(nrows), count=bands, dtype=dtype, crs=crs, transform=geotrans )
+	# populate a metadata dict from the inputs to pass to file creation
+	meta = dict( driver=driver, width=int(ncols), height=int(nrows), \
+		 	count=bands, dtype=dtype, crs=crs, transform=geotrans, compress='lzw' )
+	return rasterio.open( output_filename, mode='w', **meta )
 
 
 def reclassify( rasterio_rst, reclass_list, output_filename, band=1, creation_options=dict() ):
@@ -187,6 +188,7 @@ def overlay_cover( rasterio_rst_base, rasterio_rst_cover, in_cover_value,
 	
 	'''
 	meta = rasterio_rst_base.meta
+	meta.update( count=1, compress='lzw' )
 
 	with rasterio.open( output_filename, mode='w', **meta ) as out_rst:
 		# get the band information
@@ -296,4 +298,169 @@ def modify_dtype( in_rasterio_rst, output_filename, rasterio_dtype=rasterio.floa
 	out = rasterio.open( output_filename, mode='w', **meta ) 
 	out.write_band( band, arr )
 	return out
+
+
+def breakout( rasterio_rst, output_filename, band=1 ):
+	'''
+	break all classes from an input rasterio raster object to a 
+	new rasterio raster object with bands representing each class
+	andn value.
+
+	arguments:
+		rasterio_rst = a rasterio instatiated raster object to be 
+						run through breakout.
+		output_filename = string representation of the output file path 
+							for the new output file.
+		band = band number of layer in raster to be broken out.  
+				default: 1
+	depends:
+		rasterio, numpy
+
+	'''
+	import numpy as np
+	import rasterio
+
+	# anonymous function to write the class into a new band in output raster.
+	def f( arr, class_val ):
+		arr[ arr != class_val ] = 0	
+		return arr
+
+	arr = rasterio_rst.read_band( band )
+	classes = np.unique( arr )
+
+	meta = rasterio_rst.meta
+	meta.update( compress='lzw', count=len(classes) )
+	out_rasterio_rst = rasterio.open( output_filename, mode='w', **meta )
+	[ out_rasterio_rst.write_band( ( band + 1 ), f( arr, class_val )  )\
+					 for band, class_val in enumerate( classes ) ]
+	return out_rasterio_rst
+
+def hex_to_rgb( hex ):
+	'''
+	borrowed and modified from Matthew Kramer's blog:
+		http://codingsimplicity.com/2012/08/08/python-hex-code-to-rgb-value/
+
+	function to take a hex value and convert it into an RGB(A) representation.
+
+	This is useful for generating color tables for a rasterio GTiff from a QGIS 
+	style file (qml).  Currently tested for the QGIS 2.0+ style version.
+
+	arguments:
+		hex = hex code as a string
+
+	returns:
+		a tuple of (r,g,b,a), where the alpha (a) is ALWAYS 1.  This may need
+		additional work in the future, but is good for the current purpose.
+		** we need to figure out how to calculate that alpha value correctly.
+
+	'''
+	hex = hex.lstrip('#')
+	hlen = len(hex)
+	rgb = [ int( hex[i:i+hlen/3], 16 ) for i in range(0, hlen, hlen/3) ]
+	rgb.insert(len(rgb)+1, 1)
+	return rgb
+
+
+def qml_to_ctable( qml ):
+	'''
+	take a QGIS style file (.qml) and converts it into a 
+	rasterio-style GTiff color table for passing into a file.
+
+	arguments:
+		qml = path to a QGIS style file with .qml extension
+	returns:
+		dict of id as key and rgba as the values
+
+	'''
+	import xml.etree.cElementTree as ET
+	tree = ET.ElementTree( file=qml  )
+	return { int( i.get( 'value' ) ) : tuple( hex_to_rgb( i.get('color') ) ) for i in tree.iter( tag='item' ) }
+
+
+def resample( src, src_crs, dst_crs, output_resolution, output_filename=None, rasterio_resample_method=None, band=1 ):
+	'''
+	take a raster at one resolution and return a new GTiff in a new
+	spatial resolution as indicated by the user.
+
+	src = rasterio instantiated raster object
+	src_crs = rasterio-style proj4 dict
+	dst_crs = rasterio-style proj4 dict
+	output_resolution = list of values to set for output resolution.  
+			* can be a single value in a list or 2 values in a list.
+	output_filename = a string representation of a file path and name (GTiff only!)
+	rasterio_resample_method = Not yet included...  NN only
+
+	* if no output_filename is given the output will be a numpy ndarray
+	if there is an output_filename, the returned will be a rasterio raster 
+	object.
+
+	'''
+	import numpy as np
+	from math import trunc
+	from rasterio.warp import reproject, RESAMPLING
+	from string import letters
+
+	if len( output_resolution ) == 1:
+		output_resolution = [ output_resolution[0], output_resolution[0] ]
+	elif len( output_resolution ) == 2:
+		output_resolution = [ output_resolution[0], output_resolution[1] ]
+	else:
+		print('wrong number of resolution elements. reset and try again')
+
+	src_transform = src.transform
+	A.to_gdal( { i:j for i,j in zip( list( letters[:6] ), src_transform ) } )
+ 	dst_transform = src_transform
+ 	dst_transform[1], dst_transform[5] = output_resolution[0], output_resolution[1]
+
+	xmin, ymin, xmax, ymax = src.bounds
+	dst_width = trunc( abs( (ymax - ymin) / output_resolution[0]) )
+	dst_height = trunc( abs( (xmax - xmin) / output_resolution[1]) )
+
+	dst = np.empty( ( dst_height, dst_width ), dtype=src.meta['dtype'] )
+	reproject( src.read_band( band ), dst, src_transform, src_crs, dst_transform, dst_crs )
+
+	if output_filename is not None:
+		# get the source file metadata
+		dst_meta = src.meta
+		dst_meta.update( compress='lzw', crs=dst_crs, transform=dst_transform, height=dst_height, width=dst_width )
+		out_rst = rasterio.open( output_filename, mode='w', **dst_meta )
+		out_rst.write_band( 1, dst )
+		out = out_rst
+	else:
+		out = dst
+	return  out
+
+def union_raster_extents( rasterio_rst_1, rasterio_rst_2, output_filename, dtype=rasterio.uint8, crs={} ):
+	'''
+	make a new raster with the unioned extents of the 2 inputs
+	and return it as a GTiff with lzw compression
+
+	depends:
+		shapely, rasterio
+
+	'''
+	import shapely, math
+	from shapely.geometry import box
+	
+	resolution = rasterio_rst_1.res[0]
+	box1 = box( *rasterio_rst_1.bounds )
+	box2 = box( *rasterio_rst_2.bounds )
+	
+	full_ext = box1.union( box2 )
+	left, bottom, right, top = full_ext.exterior.bounds
+	ncols = math.ceil( ( right - left ) / resolution )
+	nrows = math.ceil( ( top - bottom ) / resolution )
+	new_transform = [ left, resolution, 0.0, top, 0.0, -resolution ]
+	meta = dict(
+				affine=rasterio.Affine.from_gdal( *new_transform ),
+				driver='GTiff', 
+				width=ncols, 
+				height=nrows, 
+				count=1, 
+				crs=crs, 
+				transform=new_transform, 
+				dtype=dtype, 
+				nodata=None
+			)
+	return rasterio.open( output_filename, mode='w', **meta )
 
