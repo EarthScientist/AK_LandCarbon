@@ -14,7 +14,7 @@ from final_v2_library import *
 # some initial setup
 version_num = 'v0_3'
 input_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data/From_Frances_Extracted'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V6'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V7'
 os.chdir( output_path )
 meta_updater = dict( driver='GTiff', dtype=rasterio.int16, compress='lzw', crs={'init':'EPSG:3338'}, count=1, nodata=None )
 
@@ -135,7 +135,7 @@ second_growth_removed.close()
 sw_added.close()
 del second_growth_removed, sw_added
 
-output_filename = os.path.join( output_path, 'LandCarbon_CoastalVegetation_SC_SEAK_30m_'+ version_num +'.tif' ) 
+output_filename = os.path.join( output_path, 'LandCarbon_MaritimeVegetation_SC_SEAK_30m_'+ version_num +'.tif' ) 
 no_veg_fix = rasterio.open( output_filename, mode='w', **meta )
 
 # lets add back in the noveg and oob data values

@@ -19,7 +19,7 @@ from final_v2_library import *
 # some initial setup
 version_num = 'v0_3'
 input_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V6'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V7'
 os.chdir( output_path )
 meta_updater = dict( driver='GTiff', dtype=rasterio.int16, compress='lzw', crs={'init':'EPSG:3338'}, count=3, nodata=None )
 
@@ -55,7 +55,7 @@ sw_image = features.rasterize(
 			fill=0 )
 
 # place the new output ndarray into sw_raster
-sw_image = sw_image.astype( np.int32 )
+sw_image = sw_image.astype( np.int16 )
 sw_raster.write_band( 1, sw_image )
 sw_raster.close()
 del sw_image, saltwater

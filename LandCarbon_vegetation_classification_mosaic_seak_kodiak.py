@@ -1,3 +1,4 @@
+# 
 import os, sys, re
 import rasterio, fiona, shapely, math
 from itertools import izip
@@ -6,14 +7,14 @@ from itertools import izip
 os.chdir( '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/CODE' )
 from final_v2_library import *
 
-# some setup
 version_num = 'v0_3'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V6'
-os.chdir( output_path )
 
-# paths to the seak and the kodiak outputs
-seak_30m = os.path.join( output_path, 'LandCarbon_CoastalVegetation_SC_SEAK_30m_' + version_num + '.tif' )
-kodiak_30m = os.path.join( output_path, 'LandCarbon_CoastalVegetation_KODIAK_30m_' + version_num + '.tif' ) 
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V7'
+os.chdir( output_path )
+meta_updater = dict( driver='GTiff', dtype=rasterio.uint8, compress='lzw', crs={'init':'EPSG:3338'}, count=1, nodata=None )
+
+seak_30m = os.path.join( output_path, 'LandCarbon_MaritimeVegetation_SC_SEAK_30m_' + version_num + '.tif' )
+kodiak_30m = os.path.join( output_path, 'LandCarbon_MaritimeVegetation_KODIAK_30m_' + version_num + '.tif' ) 
 
 # open the rasters
 seak_30m_rst = rasterio.open( seak_30m )
@@ -23,30 +24,25 @@ kodiak_30m_rst = rasterio.open( kodiak_30m )
 seak_30m_arr = seak_30m_rst.read_band( 1 )
 kodiak_30m_arr = kodiak_30m_rst.read_band( 1 )
 
-# do some reclassification to get to the final required classes
-#	change saltwater to noveg
-seak_30m_arr[ seak_30m_arr == 17 ] = 255
-kodiak_30m_arr[ kodiak_30m_arr == 17 ] = 255
-
 # dump those changes into a new map since they are soo darn large:
 # 	then read them back in for further processsing
 seak_meta = seak_30m_rst.meta
-seak_meta.update( compress='lzw', crs={ 'init':'EPSG:3338' }, nodata=None, count=1 )
+seak_meta.update( meta_updater )
 seak_rcl = rasterio.open( os.path.join( output_path, 'LandCarbon_Vegetation_SC_SEAK_30m_' + version_num + '_rcl.tif' ), mode='w', **seak_meta )
-seak_rcl.write_band( 1, seak_30m_arr )
+seak_rcl.write_band( 1, seak_30m_arr.astype( rasterio.uint8 ) )
 seak_rcl.close()
 seak_30m_rst.close() # close the original output data
 del seak_30m_rst
 
 kodiak_meta = kodiak_30m_rst.meta
-kodiak_meta.update( compress='lzw', crs={ 'init':'EPSG:3338' }, nodata=None, count=1 )
+kodiak_meta.update( meta_updater )
 kodiak_rcl = rasterio.open( os.path.join( output_path, 'LandCarbon_Vegetation_SC_kodiak_30m_' + version_num + '_rcl.tif' ), mode='w', **kodiak_meta )
-kodiak_rcl.write_band( 1, kodiak_30m_arr )
+kodiak_rcl.write_band( 1, kodiak_30m_arr.astype( rasterio.uint8 ) )
 kodiak_rcl.close()
 kodiak_30m_rst.close() # close the original output data
 del kodiak_30m_rst
 
-output_map_path = os.path.join( output_path, 'LandCarbon_CoastalVegetation_30m_'+ version_num +'.tif' )
+output_map_path = os.path.join( output_path, 'LandCarbon_MaritimeVegetation_30m_withSaltwater_'+ version_num +'.tif' )
 crs = { 'init':'EPSG:3338' }
 output_lc = union_raster_extents( seak_rcl, kodiak_rcl, output_filename=output_map_path, dtype=rasterio.uint8, crs=crs )
 output_lc_arr = output_lc.read_band( 1 )
@@ -69,8 +65,8 @@ for rst in [ seak_rcl, kodiak_rcl ]:
 	arr = None
 
 # generate a colortable for the map and pass it in:
-qml = os.path.join( output_path, 'QGIS_STYLES', 'SEAK_LandCarbon_Vegetation_QGIS_STYLE_v1_0.qml' )
-ctable = qml_to_ctable( qml )
+seak_qml_sw = os.path.join( output_path, 'QGIS_STYLES', 'SEAK_LandCarbon_Vegetation_QGIS_STYLE_v1_0_withSaltwater.qml' )
+ctable = qml_to_ctable( seak_qml_sw )
 output_lc.write_colormap( 1, ctable )
 output_lc.close()
 
@@ -83,7 +79,7 @@ output_lc.close()
 # resample this newly generated 30m map to 1km resolution using a mode resampling 
 #  --> currently employing gdalwarp ( GDAL 1.10+ )for this task and the mode resampler
 # resample the rasters to the 1000m resolution used by the IEM project
-output_filename = os.path.join( output_path, 'LandCarbon_CoastalVegetation_1km_' + version_num + '.tif' )
+output_filename = os.path.join( output_path, 'LandCarbon_MaritimeVegetation_1km_withSaltwater_' + version_num + '.tif' )
 
 # TEMPORARY FIX FOR RESAMPLING
 if os.path.exists( output_filename ):
@@ -99,6 +95,36 @@ os.system( command )
 output_lc = rasterio.open( output_filename, mode='r+' )
 output_lc.write_colormap( 1, ctable )
 output_lc.close()
+
+# now that we created the above maps for Merging purposes with the other IEM map at large we want to remove the saltwater
+# class from the final output for distribution of the 1km Map:
+# 30m
+seak_qml_final = os.path.join( output_path, 'QGIS_STYLES', 'SEAK_LandCarbon_Vegetation_QGIS_STYLE_v1_0.qml' )
+seak_30m_sw = rasterio.open( os.path.join( output_path, 'LandCarbon_MaritimeVegetation_30m_withSaltwater_'+ version_num +'.tif' ) )
+meta = seak_30m_sw.meta
+meta.update( meta_updater )
+ctable = qml_to_ctable( seak_qml_final )
+seak_30m_sw_arr = seak_30m_sw.read_band( 1 )
+seak_30m_sw_arr[ seak_30m_sw_arr == 17 ] = 255
+seak_30m_final = rasterio.open( os.path.join( output_path, 'LandCarbon_MaritimeVegetation_30m_'+ version_num +'.tif' ), mode='w', **meta )
+seak_30m_final.write_band( 1, seak_30m_sw_arr )
+seak_30m_final.write_colormap( 1, ctable )
+seak_30m_final.close()
+
+# 1km
+output_lc = rasterio.open( output_lc.name )
+meta = output_lc.meta
+meta.update( meta_updater )
+output_lc_arr = output_lc.read_band( 1 )
+# do some reclassification to get to the final required classes
+#	change saltwater to noveg
+output_lc_arr[ output_lc_arr == 17 ] = 255
+lc_1k = rasterio.open( os.path.join( output_path, 'LandCarbon_MaritimeVegetation_1km_' + version_num + '.tif' ), mode='w', **meta )
+lc_1k.write_band( 1, output_lc_arr )
+lc_1k.write_colormap( 1, ctable )
+lc_1k.close()
+
+
 
 
 

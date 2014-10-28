@@ -38,7 +38,7 @@ from final_v2_library import *
 # some initial setup
 version_num = 'v0_3'
 input_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/input_data'
-output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V6'
+output_path = '/workspace/Shared/Tech_Projects/AK_LandCarbon/project_data/output_data/data/V7'
 os.chdir( output_path )
 
 # set up some ouput sub-dirs for the intermediates and the rasterized
@@ -68,13 +68,13 @@ landcover_rcl = reclassify( landcover, reclass_list, output_filename, band=1 )
 # this is currently incorrect, but is a perfect base case for developing the new code.
 #  reclassify erroneous values in Saltwater
 sw_raster = rasterio.open( os.path.join( rasterized_path, 'saltwater_kodiak.tif' ) )
-output_filename = os.path.join( output_path, 'LandCarbon_CoastalVegetation_KodiakIsland_30m_' + version_num + '.tif' )
+output_filename = os.path.join( output_path, 'LandCarbon_MaritimeVegetation_KODIAK_30m_' + version_num + '.tif' )
 sw_removed = overlay_modify( landcover_rcl, sw_raster, in_cover_values=[1], out_cover_values=[17], \
 				output_filename=output_filename, rst_base_band=1, rst_cover_band=1 )
 sw_removed.close()
 
 # # resampling to the 1km grid 
-# output_filename = os.path.join( output_path, 'LandCarbon_CoastalVegetation_KodiakIsland_1km_' + version_num + '.tif' )
+# output_filename = os.path.join( output_path, 'LandCarbon_MaritimeVegetation_KodiakIsland_1km_' + version_num + '.tif' )
 
 # if os.path.exists( output_filename ):
 # 	os.remove( output_filename )
